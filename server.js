@@ -1,6 +1,6 @@
 const express = require('express');
 const { Pool } = require('pg');
-const cors = require('cors'); // Importa o módulo CORS
+const cors = require('cors');
 const app = express();
 const port = 3000;
 
@@ -13,8 +13,9 @@ const pool = new Pool({
   port: 5432,
 });
 
-// Middleware para analisar o corpo das requisições como JSON
-app.use(express.json());
+// Middleware para aumentar o limite de tamanho do corpo da requisição para 10MB
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Middleware para servir arquivos estáticos (se necessário)
 app.use(express.static('public'));
@@ -30,7 +31,7 @@ app.get('/', (_req, res) => {
 // Rota para buscar todos os projetos
 app.get('/projetos', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM public.projects ORDER BY id ASC');
+        const result = await pool.query('SELECT * FROM public.projetos ORDER BY id ASC');
         res.json({ message: 'Projetos carregados com sucesso!', status: 'success', data: result.rows });
     } catch (error) {
         console.error('Erro ao buscar projetos:', error);
@@ -42,7 +43,7 @@ app.get('/projetos', async (req, res) => {
 app.get('/projetos/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        const result = await pool.query('SELECT * FROM public.projects WHERE id = $1', [id]);
+        const result = await pool.query('SELECT * FROM public.projetos WHERE id = $1', [id]);
         if (result.rows.length > 0) {
             res.json({ message: 'Projeto encontrado!', status: 'success', data: result.rows[0] });
         } else {
@@ -58,8 +59,15 @@ app.get('/projetos/:id', async (req, res) => {
 app.post('/projetos', async (req, res) => {
     const { title, language, type, description, imageUrl } = req.body;
 
+    // Verificar se todos os campos necessários foram fornecidos
+    if (!title || !description) {
+        return res.status(400).json({ message: 'Título e descrição são obrigatórios.', status: 'error' });
+    }
+
     try {
-        const queryText = 'INSERT INTO public.projects (title, language, type, description, imageUrl) VALUES ($1, $2, $3, $4, $5) RETURNING *';
+        const queryText = `
+            INSERT INTO public.projetos (title, language, type, description, imageUrl)
+            VALUES ($1, $2, $3, $4, $5) RETURNING *`;
         const result = await pool.query(queryText, [title, language, type, description, imageUrl]);
         res.json({ message: 'Projeto adicionado com sucesso!', status: 'success', data: result.rows[0] });
     } catch (error) {
@@ -75,7 +83,7 @@ app.put('/projetos/:id', async (req, res) => {
 
     try {
         const queryText = `
-            UPDATE public.projects
+            UPDATE public.projetos
             SET title = $1, language = $2, type = $3, description = $4, imageUrl = $5
             WHERE id = $6
             RETURNING *`;
@@ -95,7 +103,7 @@ app.put('/projetos/:id', async (req, res) => {
 app.delete('/projetos/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        const result = await pool.query('DELETE FROM public.projects WHERE id = $1 RETURNING *', [id]);
+        const result = await pool.query('DELETE FROM public.projetos WHERE id = $1 RETURNING *', [id]);
         if (result.rows.length > 0) {
             res.json({ message: 'Projeto excluído com sucesso!', status: 'success', data: result.rows[0] });
         } else {
